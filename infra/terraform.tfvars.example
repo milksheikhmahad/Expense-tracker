@@ -1,0 +1,21 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is git-ignored —
+# never commit it.
+
+subscription_id   = "00000000-0000-0000-0000-000000000000" # az account show --query id -o tsv
+github_repo       = "your-github-username/expense-tracker" # exactly as in the repo URL
+alert_email       = "you@learner.manipal.edu"
+
+# Must be in your subscription's "Allowed resource deployment regions" policy
+location     = "centralindia"
+swa_location = "eastasia"
+
+# Make up strong values. Password: 12+ chars with upper, lower and a digit.
+db_admin_password = "ChangeMe-Expense2026"
+jwt_secret        = "paste-a-long-random-string-here-at-least-32-chars"
+
+enable_receipt_ocr = true
+
+# Optional – only if you have an Azure OpenAI deployment:
+# azure_openai_endpoint   = "https://<name>.openai.azure.com"
+# azure_openai_key        = "..."
+# azure_openai_deployment = "gpt-4o-mini"

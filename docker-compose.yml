@@ -1,0 +1,43 @@
+# Local development: Postgres + Azurite (Azure Storage emulator) + API.
+# No Azure account needed. Budget-alert emails are printed to the API logs
+# (dry-run) unless you put real ACS values in backend/.env.
+#
+#   docker compose up --build        → API on http://localhost:8080
+#   cd frontend && npm i && npm run dev  → UI on http://localhost:5173
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: expense
+      POSTGRES_PASSWORD: expense
+      POSTGRES_DB: expense
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U expense"]
+      interval: 3s
+      retries: 20
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    command: azurite-blob --blobHost 0.0.0.0 --loose
+    ports: ["10000:10000"]
+
+  api:
+    build: ./backend
+    depends_on:
+      db: { condition: service_healthy }
+      azurite: { condition: service_started }
+    ports: ["8080:8080"]
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgres://expense:expense@db:5432/expense
+      JWT_SECRET: local-dev-secret
+      CORS_ORIGINS: http://localhost:5173
+      # Well-known Azurite development key (public, emulator only)
+      AZURE_STORAGE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
+
+volumes:
+  pgdata:
