@@ -65,3 +65,9 @@ variable "azure_openai_deployment" {
   type        = string
   default     = ""
 }
+
+variable "github_oidc_subject" {
+  description = "Optional: exact OIDC subject GitHub presents (copy it from an AADSTS700213 error)"
+  type        = string
+  default     = ""
+}
