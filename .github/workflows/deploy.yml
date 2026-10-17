@@ -3,8 +3,8 @@ name: Deploy
 # Every push to main:
 #   1. builds the backend image and pushes it to GitHub Container Registry
 #   2. logs in to Azure with OIDC (no stored password) and rolls the API
-#      and worker Container Apps to the new image
-#   3. builds the React app and uploads it to Azure Static Web Apps
+#      Container App to the new image
+#   3. builds the React app and uploads it to the Blob Storage static website
 # Steps 2–3 are skipped until the repo variables from `terraform output`
 # are added (see SETUP.md), so the very first push only publishes the image.
 on:
@@ -64,12 +64,11 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Roll API and worker to the new image
+      - name: Roll the API to the new image
         run: |
           az config set extension.use_dynamic_install=yes_without_prompt
           IMAGE="${{ needs.image.outputs.image }}:${{ github.sha }}"
           az containerapp update -n "${{ vars.API_APP_NAME }}" -g "${{ vars.AZURE_RESOURCE_GROUP }}" --image "$IMAGE" -o none
-          az containerapp update -n "${{ vars.WORKER_APP_NAME }}" -g "${{ vars.AZURE_RESOURCE_GROUP }}" --image "$IMAGE" -o none
       - name: Smoke test
         run: |
           for i in $(seq 1 20); do
@@ -80,7 +79,7 @@ jobs:
 
   deploy-frontend:
     needs: test
-    if: vars.VITE_API_URL != ''
+    if: vars.AZURE_CLIENT_ID != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -90,10 +89,16 @@ jobs:
         working-directory: frontend
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
-      - uses: Azure/static-web-apps-deploy@v1
+      - uses: azure/login@v2
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-          action: upload
-          app_location: frontend/dist
-          skip_app_build: true
-          skip_api_build: true
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Upload to the storage static website
+        run: |
+          az storage blob upload-batch \
+            --account-name "${{ vars.WEB_STORAGE_ACCOUNT }}" \
+            --auth-mode key \
+            --destination '$web' \
+            --source frontend/dist \
+            --overwrite -o none

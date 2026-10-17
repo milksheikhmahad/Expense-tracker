@@ -1,5 +1,5 @@
 output "frontend_url" {
-  value = "https://${azurerm_static_web_app.web.default_host_name}"
+  value = "https://${azurerm_storage_account.st.primary_web_host}"
 }
 
 output "api_url" {
@@ -19,15 +19,9 @@ output "github_variables" {
     AZURE_SUBSCRIPTION_ID = var.subscription_id
     AZURE_RESOURCE_GROUP  = azurerm_resource_group.rg.name
     API_APP_NAME          = azurerm_container_app.api.name
-    WORKER_APP_NAME       = azurerm_container_app.worker.name
+    WEB_STORAGE_ACCOUNT   = azurerm_storage_account.st.name
     VITE_API_URL          = "https://${azurerm_container_app.api.ingress[0].fqdn}"
   }
-}
-
-output "swa_deployment_token" {
-  description = "Add as repository SECRET named AZURE_STATIC_WEB_APPS_API_TOKEN (terraform output -raw swa_deployment_token)"
-  value       = azurerm_static_web_app.web.api_key
-  sensitive   = true
 }
 
 output "postgres_server" {

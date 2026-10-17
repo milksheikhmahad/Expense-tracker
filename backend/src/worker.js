@@ -1,38 +1,20 @@
-// Budget-alert worker. Runs as its own Azure Container App that scales from
-// 0 → 1 when messages land in the Service Bus queue (KEDA), sends the email
-// through Azure Communication Services, then scales back to 0.
+// Optional standalone budget-alert worker (same consumer the API runs
+// in-process). Useful on a standard Container Apps environment if you want
+// a separate KEDA-scaled worker; not used by the default Terraform setup.
 require('./telemetry');
-const { ServiceBusClient } = require('@azure/service-bus');
 const config = require('./config');
-const { handleAlertEvent } = require('./services/alertHandler');
+const { startAlertConsumer } = require('./services/alertConsumer');
 
 if (!config.serviceBusConnectionString) {
   console.error('[worker] SERVICEBUS_CONNECTION_STRING is not set');
   process.exit(1);
 }
 
-const client = new ServiceBusClient(config.serviceBusConnectionString);
-const receiver = client.createReceiver(config.alertsQueue);
-
-receiver.subscribe(
-  {
-    processMessage: async (msg) => {
-      console.log(`[worker] received ${msg.messageId}`);
-      await handleAlertEvent(msg.body); // throwing → message is retried, then dead-lettered
-    },
-    processError: async (args) => {
-      console.error(`[worker] error from ${args.errorSource}:`, args.error.message);
-    },
-  },
-  { autoCompleteMessages: true, maxConcurrentCalls: 4 },
-);
-
-console.log(`[worker] listening on queue "${config.alertsQueue}"`);
+const stop = startAlertConsumer();
 
 async function shutdown() {
   console.log('[worker] shutting down');
-  await receiver.close();
-  await client.close();
+  await stop();
   process.exit(0);
 }
 process.on('SIGTERM', shutdown);

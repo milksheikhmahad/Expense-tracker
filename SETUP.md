@@ -117,18 +117,17 @@ If it fails, check the table at the end of this guide, fix the cause, and run
 Print the values:
 ```bash
 terraform output github_variables
-terraform output -raw swa_deployment_token
 ```
 In GitHub → repo **Settings** → **Secrets and variables** → **Actions**:
 - **Variables** tab → add each of the 7 entries from `github_variables`
   (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`,
-  `AZURE_RESOURCE_GROUP`, `API_APP_NAME`, `WORKER_APP_NAME`, `VITE_API_URL`).
-- **Secrets** tab → add `AZURE_STATIC_WEB_APPS_API_TOKEN` = the token.
+  `AZURE_RESOURCE_GROUP`, `API_APP_NAME`, `WEB_STORAGE_ACCOUNT`, `VITE_API_URL`).
+
+No secrets are needed.
 
 Shortcut if you have the GitHub CLI (`gh auth login` first), run inside `infra/`:
 ```bash
 terraform output -json github_variables | python3 -c "import json,sys;[print(k,v) for k,v in json.load(sys.stdin).items()]" | while read k v; do gh variable set "$k" --body "$v"; done
-terraform output -raw swa_deployment_token | gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN
 ```
 
 No Azure password is stored anywhere: GitHub logs in through a managed
@@ -149,22 +148,21 @@ terraform output frontend_url
 5. Check **spam** the first time. The sender is `DoNotReply@<something>.azurecomm.net`.
 
 The first request after idle takes ~10–20 s, because the API scales to zero.
-Emails take up to ~30–60 s when the worker is cold, since KEDA checks the queue every 30 s.
+The alert email normally arrives within a few seconds.
 
 ---
 
 ## Demo day checklist
-Run these ~10 minutes before presenting so everything is instant (`RG`, `API`, `WORKER` from `terraform output github_variables`; server name from `terraform output postgres_server`):
+Run these ~10 minutes before presenting so everything is instant (`RG` and `API` from `terraform output github_variables`; server name from `terraform output postgres_server`):
 ```bash
 az postgres flexible-server start -g <RG> -n <postgres-server-name>   # if you stopped it
-az containerapp update -g <RG> -n <WORKER> --min-replicas 1           # alert email in seconds
 az containerapp update -g <RG> -n <API> --min-replicas 1              # no cold start
 ```
-Afterwards set both back to `--min-replicas 0` to save credit.
+Afterwards set it back to `--min-replicas 0` to save credit.
 
 Things to show:
 - **Budget alert** — add an expense, then show the email arriving. Also show Service Bus → queue
-  metrics and the worker's log stream in the portal.
+  metrics and the API's log stream in the portal (`[alerts] received ...` lines).
 - **CI/CD** — change some text in `frontend/src/pages/Login.jsx`, push, show the
   Actions run, and refresh the site.
 - **Infrastructure as code** — `terraform plan` shows "No changes". For the rebuild
@@ -198,4 +196,4 @@ values (Portal → your Communication Service → Keys).
 | Role assignment `AuthorizationFailed` | Your account isn't Owner of the subscription. Check Subscriptions → Access control (IAM) |
 | Deploy job: `AADSTS70021 / no matching federated identity` | `github_repo` in tfvars doesn't exactly match the repo, or you pushed to a branch other than `main` |
 | Container App stuck: `ImagePullBackOff` / unauthorized | The GHCR package isn't public (step 7) |
-| No email | Check spam. Look at the worker's **Log stream** in the portal. Look at `budget_alerts.status` in the Dashboard table (`queued` = worker didn't process it) |
+| No email | Check spam. Look at the API's **Log stream** in the portal. Look at `budget_alerts.status` in the Dashboard table (`queued` = the alert was published but not processed) |

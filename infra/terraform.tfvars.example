@@ -6,8 +6,7 @@ github_repo       = "your-github-username/expense-tracker" # exactly as in the r
 alert_email       = "you@learner.manipal.edu"
 
 # Must be in your subscription's "Allowed resource deployment regions" policy
-location     = "centralindia"
-swa_location = "eastasia"
+location = "centralindia"
 
 # Make up strong values. Password: 12+ chars with upper, lower and a digit.
 db_admin_password = "ChangeMe-Expense2026"

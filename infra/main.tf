@@ -196,7 +196,7 @@ locals {
       RECEIPTS_CONTAINER = azurerm_storage_container.receipts.name
       ALERTS_QUEUE       = azurerm_servicebus_queue.alerts.name
       APP_TIMEZONE       = "Asia/Kolkata"
-      CORS_ORIGINS       = "https://${azurerm_static_web_app.web.default_host_name},http://localhost:5173"
+      CORS_ORIGINS       = "https://${azurerm_storage_account.st.primary_web_host},http://localhost:5173"
     },
     local.ocr_on ? { DOCINTEL_ENDPOINT = azurerm_cognitive_account.docintel[0].endpoint } : {},
     local.ai_on ? {
@@ -267,90 +267,17 @@ resource "azurerm_container_app" "api" {
   }
 }
 
-# Event consumer: scaled 0 → 1 by KEDA whenever the queue has messages.
-resource "azurerm_container_app" "worker" {
-  name                         = "ca-${var.project}-worker"
-  container_app_environment_id = azurerm_container_app_environment.env.id
-  resource_group_name          = azurerm_resource_group.rg.name
-  revision_mode                = "Single"
-  tags                         = local.tags
+# The budget-alert consumer runs inside the API container (see server.js).
+# Student subscriptions get "express" Container Apps environments, which
+# don't support the KEDA Service Bus scaler a separate worker app would need.
 
-  dynamic "secret" {
-    for_each = toset(["db-url", "sb", "acs", "appi"])
-    content {
-      name  = secret.value
-      value = local.secret_values[secret.value]
-    }
-  }
-
-  template {
-    min_replicas = 0
-    max_replicas = 1
-
-    container {
-      name    = "worker"
-      image   = local.image
-      command = ["node", "src/worker.js"]
-      cpu     = 0.25
-      memory  = "0.5Gi"
-
-      env {
-        name  = "DATABASE_SSL"
-        value = "true"
-      }
-      env {
-        name  = "EMAIL_SENDER"
-        value = local.sender
-      }
-      env {
-        name  = "ALERTS_QUEUE"
-        value = azurerm_servicebus_queue.alerts.name
-      }
-      env {
-        name        = "DATABASE_URL"
-        secret_name = "db-url"
-      }
-      env {
-        name        = "SERVICEBUS_CONNECTION_STRING"
-        secret_name = "sb"
-      }
-      env {
-        name        = "ACS_CONNECTION_STRING"
-        secret_name = "acs"
-      }
-      env {
-        name        = "APPLICATIONINSIGHTS_CONNECTION_STRING"
-        secret_name = "appi"
-      }
-    }
-
-    custom_scale_rule {
-      name             = "budget-alert-queue"
-      custom_rule_type = "azure-servicebus"
-      metadata = {
-        queueName    = azurerm_servicebus_queue.alerts.name
-        messageCount = "1"
-      }
-      authentication {
-        secret_name       = "sb"
-        trigger_parameter = "connection"
-      }
-    }
-  }
-
-  lifecycle {
-    ignore_changes = [template[0].container[0].image]
-  }
-}
-
-# ───────────── Frontend hosting ─────────────
-resource "azurerm_static_web_app" "web" {
-  name                = "swa-${local.name}"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = var.swa_location
-  sku_tier            = "Free"
-  sku_size            = "Free"
-  tags                = local.tags
+# ───────────── Frontend hosting: Blob Storage static website ─────────────
+# (Static Web Apps is limited to 5 regions, which student region policies
+# often block. A storage static website works in any allowed region.)
+resource "azurerm_storage_account_static_website" "web" {
+  storage_account_id = azurerm_storage_account.st.id
+  index_document     = "index.html"
+  error_404_document = "index.html" # lets React Router handle deep links
 }
 
 # ───────────── GitHub Actions login without any stored password ─────────────

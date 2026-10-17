@@ -19,12 +19,6 @@ variable "location" {
   default     = "centralindia"
 }
 
-variable "swa_location" {
-  description = "Region for Static Web Apps metadata (limited list: eastasia, eastus2, westeurope, centralus, westus2)"
-  type        = string
-  default     = "eastasia"
-}
-
 variable "github_repo" {
   description = "GitHub repo that may deploy, as owner/name (e.g. mahad/expense-tracker)"
   type        = string
